@@ -42,6 +42,7 @@ vagrant ssh-config
 ```
 
 Copy the relevant details and add them to your host's ~/.ssh/config file. It should look like this:
+Important: change the "Host default" to "Host ai-sandbox" or what you like.
 ```bash
 Host ai-sandbox
   HostName 127.0.0.1
@@ -54,6 +55,11 @@ Host ai-sandbox
   IdentityFile /home/ihr-name/ai-sandbox/.vagrant/machines/default/virtualbox/private_key
   IdentitiesOnly yes
   LogLevel FATAL
+```
+
+Whenever you want to ssh into the VM:
+```bash
+ssh ai-sandbox
 ```
 
 ### 4. (optional) 
