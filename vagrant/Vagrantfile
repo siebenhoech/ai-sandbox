@@ -1,0 +1,60 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+Vagrant.configure("2") do |config|
+  # --- NEW BASE: Debian 12 (Bookworm) ---
+  config.vm.box = "debian/bookworm64"
+  config.vm.hostname = "ai-agent-sandbox"
+
+  config.vm.network "forwarded_port", guest: 8080, host: 8080
+  config.vm.network "forwarded_port", guest: 8081, host: 8081
+  config.vm.network "forwarded_port", guest: 27017, host: 27017
+
+  config.vm.synced_folder "../workspace", "/home/vagrant/workspace", 
+    owner: "vagrant", group: "vagrant", mount_options: ["dmode=775,fmode=664"]
+
+  config.vm.provider "virtualbox" do |vb|
+    vb.name = "AI-Coding-Sandbox-Debian"
+    vb.memory = "8192" 
+    vb.cpus = 4        
+    vb.customize ["modifyvm", :id, "--nested-hw-virt", "on"]
+  end
+
+  config.vm.provision "file", source: "../secrets/id_ed25519", destination: "/home/vagrant/.ssh/id_ed25519"
+
+  config.vm.provision "shell", inline: <<-SHELL
+    # 1. Non-interactive Updates
+    export DEBIAN_FRONTEND=noninteractive
+    apt-get update
+    apt-get -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" dist-upgrade
+
+    # 2. Tools & Java
+    apt-get install -y curl wget git unzip htop software-properties-common
+    apt-get install -y maven
+
+    # 3. Podman (Standard in Debian, no extra repos needed)
+    apt-get install -y podman
+    # Link podman to docker command for compatibility
+    ln -s /usr/bin/podman /usr/bin/docker
+
+    # 4. SSH & Git
+    chmod 600 /home/vagrant/.ssh/id_ed25519
+    chown vagrant:vagrant /home/vagrant/.ssh/id_ed25519
+    ssh-keyscan github.com >> /home/vagrant/.ssh/known_hosts 2>/dev/null
+    chown vagrant:vagrant /home/vagrant/.ssh/known_hosts
+    
+    sudo -u vagrant git config --global user.email "agent@sandbox"
+    sudo -u vagrant git config --global user.name "AI Agent"
+
+    # 5. Claude CLI & Path Setup
+    if ! command -v claude &> /dev/null; then
+      echo "--- Installing Claude CLI ---"
+      curl -fsSL https://claude.ai/install.sh | bash
+      echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc && source ~/.bashrc
+    fi
+
+    # 6. Set Anthropic environment variables
+
+    echo "--- SETUP FERTIG (Debian $(cat /etc/debian_version)) ---"
+  SHELL
+end
