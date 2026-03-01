@@ -1,3 +1,10 @@
 workspace
 secrets
 .vagrant
+# Local environment variables (NEVER COMMIT THESE FILES!)
+.env
+*.env
+.env.*
+# only the template
+!.env.template
+
