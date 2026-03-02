@@ -1,3 +1,5 @@
+
+
 # -*- mode: ruby -*-
 # vi: set ft=ruby :
 
@@ -30,16 +32,18 @@ Vagrant.configure("2") do |config|
 
     # 2. Tools & Java
     apt-get install -y curl wget git unzip htop software-properties-common
-    apt-get install openjdk-17-jdk
+    apt-get install -y openjdk-17-jdk
     apt-get install -y maven
 
     # 3. Podman (Standard in Debian, no extra repos needed)
     apt-get install -y podman
     # Link podman to docker command for compatibility
     ln -s /usr/bin/podman /usr/bin/docker
-    sudo -u vagrant systemctl --user enable --now podman.socket
+    loginctl enable-linger vagrant
+    sudo -u vagrant XDG_RUNTIME_DIR=/run/user/1000 systemctl --user enable --now podman.socket
+
     # fix Podman warning
-    sudo -u vagrant echo "alias podman='podman --cgroup-manager=cgroupfs'" >> ~/.bashrc
+    sudo -u vagrant echo "alias podman='podman --cgroup-manager=cgroupfs'" >> /home/vagrant/.bashrc
 
     # 4. SSH & Git
     chmod 600 /home/vagrant/.ssh/id_ed25519
@@ -53,7 +57,7 @@ Vagrant.configure("2") do |config|
     # 5. Claude CLI & Path Setup
     if ! command -v claude &> /dev/null; then
       echo "--- Installing Claude CLI ---"
-      sudo -u vagrant echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
+      sudo -u vagrant echo 'export PATH="$HOME/.local/bin:$PATH"' >> /home/vagrant/.bashrc
       sudo -u vagrant curl -fsSL https://claude.ai/install.sh | sudo -u vagrant bash
     fi
 
@@ -68,10 +72,12 @@ Vagrant.configure("2") do |config|
     sudo -u vagrant echo 'fi' >> /home/vagrant/.bashrc
 
     # 7. Setup Testcontainers
-    echo '# Write ~/.testcontainers.properties if it not exists'
+    echo 'Setting up ~/.testcontainers.properties'
     if [ ! -f /home/vagrant/.testcontainers.properties ]; then
-    sudo -u vagrant echo '  docker.host=unix:///run/user/1000/podman/podman.sock' >> /home/vagrant/.testcontainers.properties
-    sudo -u vagrant echo '  ryuk.disabled=true' >> /home/vagrant/.testcontainers.properties
+        cat <<EOF | sudo -u vagrant tee /home/vagrant/.testcontainers.properties > /dev/null
+docker.host=unix:///run/user/1000/podman/podman.sock
+ryuk.disabled=true
+EOF
     fi
 
     echo "--- SETUP COMPLETE ---"
