@@ -91,10 +91,60 @@ Because your workspace and Git SSH keys are stored on the host and mounted into 
     vagrant up
 ```
 
-## Important Notes for AI Agents
+## Important Notes
 
 ### Docker commands:
 The VM is configured to alias docker to podman. When the AI agent tries to run docker run ..., it will seamlessly execute via rootless Podman.
 
 ### Ports:
 Port 8080 is forwarded to your host. If the agent runs a Spring Boot app on port 8080 in the VM, you can view it on your host at http://localhost:8080.
+
+## Testcontainers + Podman Setup (new VM / new developer machine)
+
+To have integration tests run via Testcontainers against a real MongoDB container managed by Podman, Three things must be configured on each machine:
+
+### 1. Enable the Podman user socket (automated with the Vagrantfile)
+
+```bash
+systemctl --user enable --now podman.socket
+```
+
+This creates the socket at `/run/user/1000/podman/podman.sock` and ensures it is re-enabled on reboot (`enable`, not just `start`).
+
+Verify:
+```bash
+systemctl --user is-active podman.socket   # should print: active
+ls /run/user/1000/podman/podman.sock       # socket file must exist
+```
+
+### 2. Create `~/.testcontainers.properties` (automated with the Vagrantfile)
+
+```properties
+docker.host=unix:///run/user/1000/podman/podman.sock
+ryuk.disabled=true
+```
+
+This tells the Testcontainers library where to find Podman and disables Ryuk (the resource reaper), which is incompatible with rootless Podman.
+
+### 3. `pom.xml` — add this to your pom.xml
+
+configure `maven-surefire-plugin` is to pass the required environment variables to the forked test JVM:
+
+```xml
+<environmentVariables>
+    <TESTCONTAINERS_RYUK_DISABLED>true</TESTCONTAINERS_RYUK_DISABLED>
+    <TESTCONTAINERS_HOST_OVERRIDE>localhost</TESTCONTAINERS_HOST_OVERRIDE>
+</environmentVariables>
+```
+
+`TESTCONTAINERS_HOST_OVERRIDE=localhost` is required because rootless Podman reports the host address differently than Docker; without it Testcontainers cannot connect to mapped container ports.
+
+### Why three places?
+
+| Location | What it controls |
+|----------|-----------------|
+| `systemctl --user enable --now podman.socket` | Makes the Podman socket available on the filesystem |
+| `~/.testcontainers.properties` | Tells Testcontainers which socket to use and disables Ryuk at the library level |
+| `pom.xml` `environmentVariables` | Passes the same flags to the forked Surefire JVM, which does not inherit the properties file by default in all environments |
+
+All three are necessary. If `mvn test` fails with Testcontainers errors, verify each layer in order.
