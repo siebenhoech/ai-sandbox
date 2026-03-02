@@ -87,7 +87,7 @@ Because your workspace and Git SSH keys are stored on the host and mounted into 
 ### Nuke and Rebuild (The "Undo" button):
     If the environment gets corrupted, destroy it and recreate it. Your code and GitHub keys will survive!
 ```bash
-    vagrant destroy -f
+    vagrant destroy
     vagrant up
 ```
 
